@@ -1,9 +1,8 @@
-#[macro_use]
-mod turing;
+extern crate turing;
 
 use std::thread::sleep;
 use std::time::Duration;
-use turing::State;
+use turing::{ State, turing };
 
 fn main() {
     let mut args = ::std::env::args().skip(1);

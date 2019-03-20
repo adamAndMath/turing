@@ -4,4 +4,12 @@ version = "0.1.0"
 authors = ["Adam <adam.and.math@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "turing"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "turing_bin"
+path = "./src/main.rs"
+
 [dependencies]

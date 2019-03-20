@@ -104,6 +104,7 @@ impl<Sym, Mem> Turing<Sym, Mem> {
     }
 }
 
+#[macro_export]
 macro_rules! turing {
     ($default:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ },)+) => (
         turing!($default ; $accept ; $(($mem) { $($sym => ($dir, $sym_new, $mem_new))+ }),+)
