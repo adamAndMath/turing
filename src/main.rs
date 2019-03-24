@@ -1,8 +1,9 @@
 extern crate turing;
 
+use std::fmt::Display;
 use std::thread::sleep;
 use std::time::Duration;
-use turing::{ State, turing };
+use turing::{ Tape, turing };
 
 fn main() {
     let mut args = ::std::env::args().skip(1);
@@ -17,9 +18,15 @@ fn main() {
     }
 }
 
+fn print_state<Sym: Display, Mem: Display>(tape: &Tape<Sym>, mem: &Mem) {
+    println!("mem: {}", mem);
+    println!("{}", tape);
+    sleep(Duration::from_millis(200));
+}
+
 fn copy(input: Option<&str>) {
     let input = input.unwrap_or("_abbaab");
-    let t = turing! ('_';9;
+    let t = turing! ('_';0;9;
         (0) { '_' => (Right, '_', 1) },
         (1) {
             'a' => (Right, 'A', 2)
@@ -64,8 +71,8 @@ fn copy(input: Option<&str>) {
         },
     );
 
-    let state: State<char, usize> = State::new(input.chars().collect(), 0);
-    match t.debug(state, |s| {println!("{}", s); sleep(Duration::from_millis(500))}) {
+    let tape = Tape::new(input.chars().collect());
+    match t.debug(tape, print_state) {
         None => println!("Failed"),
         Some(state) => {
             println!("Finished as");
@@ -76,7 +83,7 @@ fn copy(input: Option<&str>) {
 
 fn calcuator(input: Option<&str>) {
     let input = input.unwrap_or("_uucz1100,0101");
-    let t = turing! ('_';"Done";
+    let t = turing! ('_';"Start";"Done";
         ("Start") { '_' => (Right, '_', "Start2") },
         ("Start2") {
             '0' => (Right, '0', "Start2")
@@ -312,8 +319,8 @@ fn calcuator(input: Option<&str>) {
         },
     );
 
-    let state: State<char, &str> = State::new(input.chars().collect(), "Start");
-    match t.debug(state, |s| {println!("{}", s); sleep(Duration::from_millis(100))}) {
+    let tape = Tape::new(input.chars().collect());
+    match t.debug(tape, print_state) {
         None => println!("Failed"),
         Some(state) => {
             println!("Finished as");

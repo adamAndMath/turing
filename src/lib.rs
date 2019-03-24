@@ -9,15 +9,14 @@ pub enum Dir {
     Right,
 }
 
-pub struct State<Sym, Mem> {
+pub struct Tape<Sym> {
     tape: VecDeque<Sym>,
     pos: usize,
-    mem: Mem,
 }
 
-impl<Sym, Mem> State<Sym, Mem> {
-    pub fn new(tape: VecDeque<Sym>, mem: Mem) -> Self {
-        State { tape, mem, pos: 0 }
+impl<Sym> Tape<Sym> {
+    pub fn new(tape: VecDeque<Sym>) -> Self {
+        Tape { tape, pos: 0 }
     }
 
     pub fn current(&self) -> &Sym {
@@ -42,10 +41,9 @@ impl<Sym, Mem> State<Sym, Mem> {
         }
     }
 
-    pub fn print(&self, view: usize) where Sym: Display, Mem: Display {
+    pub fn print(&self, view: usize) where Sym: Display {
         let min = if self.pos < view { 0 } else { self.pos - view };
         let max = self.tape.len().max(self.pos + view + 1);
-        println!("mem: {}", self.mem);
         for sym in self.tape.iter().take(max).skip(min) {
             print!("{}", sym);
         }
@@ -54,9 +52,8 @@ impl<Sym, Mem> State<Sym, Mem> {
     }
 }
 
-impl<Sym: Display, Mem: Display> Display for State<Sym, Mem> {
+impl<Sym: Display> Display for Tape<Sym> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "mem: {}", self.mem)?;
         for sym in &self.tape {
             write!(f, "{}", sym)?;
         }
@@ -69,51 +66,57 @@ impl<Sym: Display, Mem: Display> Display for State<Sym, Mem> {
 pub struct Turing<Sym, Mem> {
     map: HashMap<(Sym, Mem), (Dir, Sym, Mem)>,
     default: Sym,
+    initial: Mem,
     accepted: Mem,
 }
 
 impl<Sym, Mem> Turing<Sym, Mem> {
-    pub fn new(map: HashMap<(Sym, Mem), (Dir, Sym, Mem)>, default: Sym, accepted: Mem) -> Self {
-        Turing { map, default, accepted }
+    pub fn new(map: HashMap<(Sym, Mem), (Dir, Sym, Mem)>, default: Sym, initial: Mem, accepted: Mem) -> Self {
+        Turing { map, default, initial, accepted }
     }
 
-    fn step(&self, mut state: State<Sym, Mem>) -> Option<State<Sym, Mem>>
+    fn step(&self, mut state: Tape<Sym>, mem: Mem) -> Option<(Tape<Sym>, Mem)>
         where Sym: Clone + Eq + Hash + Default, Mem: Clone + Eq + Hash {
-        let (dir, sym, mem) = self.map.get(&(state.current().clone(), state.mem.clone()))?;
+        let (dir, sym, mem) = self.map.get(&(state.current().clone(), mem))?;
         state.write(sym.clone());
-        state.mem = mem.clone();
         state.mov(*dir, &self.default);
-        Some(state)
+        Some((state, mem.clone()))
     }
 
-    pub fn run(&self, mut state: State<Sym, Mem>) -> Option<State<Sym, Mem>>
+    pub fn run(&self, mut tape: Tape<Sym>) -> Option<Tape<Sym>>
         where Sym: Clone + Eq + Hash + Default, Mem: Clone + Eq + Hash {
-        while state.mem != self.accepted {
-            state = self.step(state)?;
+        let mut mem = self.initial.clone();
+        while mem != self.accepted {
+            let state = self.step(tape, mem)?;
+            tape = state.0;
+            mem = state.1;
         }
-        Some(state)
+        Some(tape)
     }
 
-    pub fn debug<F: Fn(&State<Sym, Mem>)>(&self, mut state: State<Sym, Mem>, peek: F) -> Option<State<Sym, Mem>>
+    pub fn debug<F: Fn(&Tape<Sym>, &Mem)>(&self, mut tape: Tape<Sym>, peek: F) -> Option<Tape<Sym>>
         where Sym: Clone + Eq + Hash + Default + Display, Mem: Clone + Eq + Hash + Display {
-        while state.mem != self.accepted {
-            peek(&state);
-            state = self.step(state)?;
+        let mut mem = self.initial.clone();
+        while mem != self.accepted {
+            peek(&tape, &mem);
+            let state = self.step(tape, mem)?;
+            tape = state.0;
+            mem = state.1;
         }
-        Some(state)
+        Some(tape)
     }
 }
 
 #[macro_export]
 macro_rules! turing {
-    ($default:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ },)+) => (
-        turing!($default ; $accept ; $(($mem) { $($sym => ($dir, $sym_new, $mem_new))+ }),+)
+    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ },)+) => (
+        turing!($default ; $initial ; $accept ; $(($mem) { $($sym => ($dir, $sym_new, $mem_new))+ }),+)
     );
-    ($default:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ }),+) => ({
+    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ }),+) => ({
         let mut map = std::collections::HashMap::new();
         $($(
             map.insert(($sym, $mem), (crate::turing::Dir::$dir, $sym_new, $mem_new));
         )+)+
-        crate::turing::Turing::new(map, $default, $accept)
+        crate::turing::Turing::new(map, $default, $initial, $accept)
     })
 }
