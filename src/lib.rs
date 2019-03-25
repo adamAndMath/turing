@@ -2,6 +2,15 @@ use std::collections::{ VecDeque, HashMap };
 use std::fmt::{ self, Display, Formatter };
 use std::hash::Hash;
 
+pub trait Space {
+    type Sym: Clone + Eq;
+    type Dir: Clone;
+
+    fn read(&self) -> Self::Sym;
+    fn write(&mut self, sym: Self::Sym);
+    fn mov(&mut self, dir: Self::Dir, def: &Self::Sym);
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Dir {
     Left,
@@ -18,16 +27,21 @@ impl<Sym> Tape<Sym> {
     pub fn new(tape: VecDeque<Sym>) -> Self {
         Tape { tape, pos: 0 }
     }
+}
 
-    pub fn current(&self) -> &Sym {
-        &self.tape[self.pos]
+impl<Sym: Clone + Eq> Space for Tape<Sym> {
+    type Sym = Sym;
+    type Dir = Dir;
+
+    fn read(&self) -> Sym {
+        self.tape[self.pos].clone()
     }
 
     fn write(&mut self, sym: Sym) {
         self.tape[self.pos] = sym;
     }
 
-    fn mov(&mut self, dir: Dir, def: &Sym) where Sym: Clone {
+    fn mov(&mut self, dir: Dir, def: &Sym) {
         match dir {
             Dir::Left if self.pos == 0 => self.tape.push_front(def.clone()),
             Dir::Left => self.pos -= 1,
@@ -39,16 +53,6 @@ impl<Sym> Tape<Sym> {
                 }
             }
         }
-    }
-
-    pub fn print(&self, view: usize) where Sym: Display {
-        let min = if self.pos < view { 0 } else { self.pos - view };
-        let max = self.tape.len().max(self.pos + view + 1);
-        for sym in self.tape.iter().take(max).skip(min) {
-            print!("{}", sym);
-        }
-        println!();
-        println!("{:>1$}", "^", self.pos - min + 1);
     }
 }
 
@@ -63,60 +67,125 @@ impl<Sym: Display> Display for Tape<Sym> {
     }
 }
 
-pub struct Turing<Sym, Mem> {
-    map: HashMap<(Sym, Mem), (Dir, Sym, Mem)>,
-    default: Sym,
+macro_rules! impl_tuple_space {
+    ($($n:tt : $T:ident),+) => {
+        impl<$($T: Space),+> Space for ($($T),+) {
+            type Sym = ($($T::Sym),*);
+            type Dir = ($($T::Dir),*);
+
+            fn read(&self) -> Self::Sym {
+                ($(self.$n.read()),+)
+            }
+
+            fn write(&mut self, sym: Self::Sym) {
+                $(self.$n.write(sym.$n);)+
+            }
+
+            fn mov(&mut self, dir: Self::Dir, def: &Self::Sym) {
+                $(self.$n.mov(dir.$n, &def.$n);)+
+            }
+        }
+    };
+}
+
+macro_rules! impl_array_space {
+    ($n:literal, $($i:literal),+) => {
+        impl<T: Space> Space for [T;$n] {
+            type Sym = [T::Sym;$n];
+            type Dir = [T::Dir;$n];
+
+            fn read(&self) -> Self::Sym {
+                [$(self[$n - $i - 1].read()),+]
+            }
+
+            fn write(&mut self, sym: Self::Sym) {
+                $(self[$n - $i - 1].write(sym[$n - $i - 1].clone());)+
+            }
+
+            fn mov(&mut self, dir: Self::Dir, def: &Self::Sym) {
+                $(self[$n - $i - 1].mov(dir[$n - $i - 1].clone(), &def[$n - $i - 1]);)+
+            }
+        }
+
+        impl_array_space!($($i),+);
+    };
+    ($n:literal) => {
+        impl<T: Space> Space for [T;$n] {
+            type Sym = [T::Sym;$n];
+            type Dir = [T::Dir;$n];
+
+            fn read(&self) -> Self::Sym { [] }
+            fn write(&mut self, _: Self::Sym) {}
+            fn mov(&mut self, _: Self::Dir, _: &Self::Sym) {}
+        }
+    };
+}
+
+impl_tuple_space!(0:T0,1:T1);
+impl_tuple_space!(0:T0,1:T1,2:T2);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4,5:T5);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4,5:T5,6:T6);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4,5:T5,6:T6,7:T7);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4,5:T5,6:T6,7:T7,8:T8);
+impl_tuple_space!(0:T0,1:T1,2:T2,3:T3,4:T4,5:T5,6:T6,7:T7,8:T8,9:T9);
+impl_array_space!(32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+
+pub struct Turing<S: Space, Mem> {
+    map: HashMap<(S::Sym, Mem), (S::Dir, S::Sym, Mem)>,
+    default: S::Sym,
     initial: Mem,
     accepted: Mem,
 }
 
-impl<Sym, Mem> Turing<Sym, Mem> {
-    pub fn new(map: HashMap<(Sym, Mem), (Dir, Sym, Mem)>, default: Sym, initial: Mem, accepted: Mem) -> Self {
+impl<S: Space, Mem> Turing<S, Mem> {
+    pub fn new(map: HashMap<(S::Sym, Mem), (S::Dir, S::Sym, Mem)>, default: S::Sym, initial: Mem, accepted: Mem) -> Self {
         Turing { map, default, initial, accepted }
     }
 
-    fn step(&self, mut state: Tape<Sym>, mem: Mem) -> Option<(Tape<Sym>, Mem)>
-        where Sym: Clone + Eq + Hash + Default, Mem: Clone + Eq + Hash {
-        let (dir, sym, mem) = self.map.get(&(state.current().clone(), mem))?;
-        state.write(sym.clone());
-        state.mov(*dir, &self.default);
-        Some((state, mem.clone()))
+    fn step(&self, mut space: S, mem: Mem) -> Option<(S, Mem)>
+        where S::Sym: Hash, Mem: Clone + Eq + Hash {
+        let (dir, sym, mem) = self.map.get(&(space.read(), mem))?;
+        space.write(sym.clone());
+        space.mov(dir.clone(), &self.default);
+        Some((space, mem.clone()))
     }
 
-    pub fn run(&self, mut tape: Tape<Sym>) -> Option<Tape<Sym>>
-        where Sym: Clone + Eq + Hash + Default, Mem: Clone + Eq + Hash {
+    pub fn run(&self, mut space: S) -> Option<S>
+        where S::Sym: Hash, Mem: Clone + Eq + Hash {
         let mut mem = self.initial.clone();
         while mem != self.accepted {
-            let state = self.step(tape, mem)?;
-            tape = state.0;
+            let state = self.step(space, mem)?;
+            space = state.0;
             mem = state.1;
         }
-        Some(tape)
+        Some(space)
     }
 
-    pub fn debug<F: Fn(&Tape<Sym>, &Mem)>(&self, mut tape: Tape<Sym>, peek: F) -> Option<Tape<Sym>>
-        where Sym: Clone + Eq + Hash + Default + Display, Mem: Clone + Eq + Hash + Display {
+    pub fn debug<F: Fn(&S, &Mem)>(&self, mut space: S, peek: F) -> Option<S>
+        where S::Sym: Hash, Mem: Clone + Eq + Hash {
         let mut mem = self.initial.clone();
         while mem != self.accepted {
-            peek(&tape, &mem);
-            let state = self.step(tape, mem)?;
-            tape = state.0;
+            peek(&space, &mem);
+            let state = self.step(space, mem)?;
+            space = state.0;
             mem = state.1;
         }
-        Some(tape)
+        Some(space)
     }
 }
 
 #[macro_export]
 macro_rules! turing {
-    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ },)+) => (
-        turing!($default ; $initial ; $accept ; $(($mem) { $($sym => ($dir, $sym_new, $mem_new))+ }),+)
+    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($rest:tt)* },)+) => (
+        turing!($default ; $initial ; $accept ; $(($mem) { $($rest)* }),+)
     );
-    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:ident, $sym_new:expr, $mem_new:expr))+ }),+) => ({
+    ($default:expr ; $initial:expr ; $accept:expr ; $(($mem:expr) { $($sym:expr => ($dir:expr, $sym_new:expr, $mem_new:expr))* }),+) => ({
         let mut map = std::collections::HashMap::new();
         $($(
-            map.insert(($sym, $mem), (crate::turing::Dir::$dir, $sym_new, $mem_new));
+            map.insert(($sym, $mem), ($dir, $sym_new, $mem_new));
         )+)+
         crate::turing::Turing::new(map, $default, $initial, $accept)
-    })
+    });
 }
