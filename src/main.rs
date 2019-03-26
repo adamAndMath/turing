@@ -3,7 +3,7 @@ extern crate turing;
 use std::fmt::Display;
 use std::thread::sleep;
 use std::time::Duration;
-use turing::{ Tape, turing };
+use turing::{ Tape, turing, Dir::* };
 
 fn main() {
     let mut args = ::std::env::args().skip(1);
@@ -12,6 +12,8 @@ fn main() {
     let input = input.as_ref().map(|s|s.as_ref());
 
     match machine.as_ref() {
+        "mul" => unary_mul(input),
+        "sqr" => check_sqr(input),
         "copy" => copy(input),
         "calc" => calcuator(input),
         m => println!("Unknown machine: {}", m),
@@ -22,6 +24,103 @@ fn print_state<Sym: Display, Mem: Display>(tape: &Tape<Sym>, mem: &Mem) {
     println!("mem: {}", mem);
     println!("{}", tape);
     sleep(Duration::from_millis(200));
+}
+
+fn print_slices<Sym: Display, Mem: Display, A: AsRef<[Tape<Sym>]>>(tape: &A, mem: &Mem) {
+    println!("mem: {}", mem);
+    for t in tape.as_ref() {
+        println!("{}", t);
+    }
+    sleep(Duration::from_millis(200));
+}
+
+fn unary_mul(input: Option<&str>) {
+    let input = input.unwrap_or("#111#1111#");
+    let t = turing!(['_','_','_'];"Start";"Done";
+        ("Start") {['#','_','_'] => ([Right, Right, Stay], ['#', '#', '_'], "Par1")},
+        ("Par1") {
+            ['1','_','_'] => ([Right, Right, Stay], ['1', '1', '_'], "Par1")
+            ['#','_','_'] => ([Right, Stay, Right], ['#', '#', '#'], "Par2")
+        },
+        ("Par2") {
+            ['1','#','_'] => ([Right, Stay, Right], ['1', '#', '1'], "Par2")
+            ['#','#','_'] => ([Left, Stay, Left], ['_', '#', '#'], "Reset2")
+        },
+        ("Reset2") {
+            ['1','#','1'] => ([Left, Stay, Left], ['_', '#', '1'], "Reset2")
+            ['#','#','#'] => ([Left, Left, Stay], ['_', '#', '#'], "Reset1")
+        },
+        ("Reset1") {
+            ['1','1','#'] => ([Left, Left, Stay], ['_', '1', '#'], "Reset1")
+            ['#','#','#'] => ([Right, Right, Right], ['#', '#', '#'], "Calc")
+        },
+        ("Calc") {
+            ['_','1','1'] => ([Right, Right, Stay], ['1', '1', '1'], "Calc")
+            ['_','#','1'] => ([Stay, Left, Stay], ['_', '#', '1'], "Calc:Reset")
+            ['_','1','#'] => ([Stay, Right, Stay], ['#', '1', '#'], "Cleanup:Climb1")
+            ['_','#','#'] => ([Stay, Stay, Stay], ['#', '#', '#'], "Cleanup:Climb1")
+        },
+        ("Calc:Reset") {
+            ['_','1','1'] => ([Stay, Left, Stay], ['_', '1', '1'], "Calc:Reset")
+            ['_','#','1'] => ([Stay, Right, Right], ['_', '#', '1'], "Calc")
+        },
+        ("Cleanup:Climb1") {
+            ['#','1','#'] => ([Stay, Right, Stay], ['#', '1', '#'], "Cleanup:Climb1")
+            ['#','#','#'] => ([Stay, Left, Stay], ['#', '_', '#'], "Cleanup:Clear1")
+        },
+        ("Cleanup:Clear1") {
+            ['#','1','#'] => ([Stay, Left, Stay], ['#', '_', '#'], "Cleanup:Clear1")
+            ['#','#','#'] => ([Stay, Stay, Left], ['#', '_', '_'], "Cleanup:Clear2")
+        },
+        ("Cleanup:Clear2") {
+            ['#','_','1'] => ([Stay, Stay, Left], ['#', '_', '_'], "Cleanup:Clear2")
+            ['#','_','#'] => ([Left, Stay, Stay], ['#', '_', '_'], "Cleanup")
+        },
+        ("Cleanup") {
+            ['1','_','_'] => ([Left, Stay, Stay], ['1', '_', '_'], "Cleanup")
+            ['#','_','_'] => ([Stay, Stay, Stay], ['#', '_', '_'], "Done")
+        },
+    );
+
+    let tape = Tape::new(input.chars().collect());
+    let tape2 = Tape::new("_".chars().collect());
+    let tape3 = Tape::new("_".chars().collect());
+    match t.debug([tape, tape2, tape3], print_slices) {
+        None => println!("Failed"),
+        Some([tape, tape2, tape3]) => {
+            println!("Finished as");
+            println!("{}", tape);
+            println!("{}", tape2);
+            println!("{}", tape3);
+        }
+    }
+}
+
+fn check_sqr(input: Option<&str>) {
+    let input = input.unwrap_or("1111111111111111");
+    let t = turing!(['_','_'];"Start";"Done";
+        ("Start") { ['1','_'] => ([Right, Stay], ['1', '_'], "Reset") },
+        ("Bump") {
+            ['1','1'] => ([Right, Right], ['1', '1'], "Bump")
+            ['1','_'] => ([Right, Stay], ['1', '1'], "Reset")
+        },
+        ("Reset") {
+            ['1','1'] => ([Right, Left], ['1', '1'], "Reset")
+            ['1','_'] => ([Right, Right], ['1', '_'], "Bump")
+            ['_','_'] => ([Stay, Right], ['_', '_'], "Done")
+        },
+    );
+
+    let tape = Tape::new(input.chars().collect());
+    let tape2 = Tape::new("_".chars().collect());
+    match t.debug([tape, tape2], print_slices) {
+        None => println!("Failed"),
+        Some([tape, tape2]) => {
+            println!("Finished as");
+            println!("{}", tape);
+            println!("{}", tape2);
+        }
+    }
 }
 
 fn copy(input: Option<&str>) {
