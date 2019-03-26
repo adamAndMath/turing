@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::fmt::{ self, Display, Formatter };
+use std::iter::FromIterator;
 
 use crate::{ Dir, Space };
 
@@ -8,9 +9,12 @@ pub struct Tape<Sym> {
     pos: usize,
 }
 
-impl<Sym> Tape<Sym> {
-    pub fn new(tape: VecDeque<Sym>) -> Self {
-        Tape { tape, pos: 0 }
+impl<Sym> FromIterator<Sym> for Tape<Sym> {
+    fn from_iter<I: IntoIterator<Item = Sym>>(iter: I) -> Self {
+        Tape {
+            tape: iter.into_iter().collect(),
+            pos: 0
+        }
     }
 }
 

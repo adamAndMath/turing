@@ -82,9 +82,9 @@ fn unary_mul(input: Option<&str>) {
         },
     );
 
-    let tape = Tape::new(input.chars().collect());
-    let tape2 = Tape::new("_".chars().collect());
-    let tape3 = Tape::new("_".chars().collect());
+    let tape = input.chars().collect();
+    let tape2 = "_".chars().collect();
+    let tape3 = "_".chars().collect();
     match t.debug([tape, tape2, tape3], print_slices) {
         None => println!("Failed"),
         Some([tape, tape2, tape3]) => {
@@ -111,8 +111,8 @@ fn check_sqr(input: Option<&str>) {
         },
     );
 
-    let tape = Tape::new(input.chars().collect());
-    let tape2 = Tape::new("_".chars().collect());
+    let tape = input.chars().collect();
+    let tape2 = "_".chars().collect();
     match t.debug([tape, tape2], print_slices) {
         None => println!("Failed"),
         Some([tape, tape2]) => {
@@ -170,7 +170,7 @@ fn copy(input: Option<&str>) {
         },
     );
 
-    let tape = Tape::new(input.chars().collect());
+    let tape = input.chars().collect();
     match t.debug(tape, print_state) {
         None => println!("Failed"),
         Some(state) => {
@@ -418,7 +418,7 @@ fn calcuator(input: Option<&str>) {
         },
     );
 
-    let tape = Tape::new(input.chars().collect());
+    let tape = input.chars().collect();
     match t.debug(tape, print_state) {
         None => println!("Failed"),
         Some(state) => {
