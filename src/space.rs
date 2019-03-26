@@ -4,7 +4,7 @@ pub trait Space {
 
     fn read(&self) -> Self::Sym;
     fn write(&mut self, sym: Self::Sym);
-    fn mov(&mut self, dir: Self::Dir, def: &Self::Sym);
+    fn mov(&mut self, dir: &Self::Dir, def: &Self::Sym);
 }
 
 
@@ -22,8 +22,8 @@ macro_rules! impl_tuple_space {
                 $(self.$n.write(sym.$n);)+
             }
 
-            fn mov(&mut self, dir: Self::Dir, def: &Self::Sym) {
-                $(self.$n.mov(dir.$n, &def.$n);)+
+            fn mov(&mut self, dir: &Self::Dir, def: &Self::Sym) {
+                $(self.$n.mov(&dir.$n, &def.$n);)+
             }
         }
     };
@@ -43,8 +43,8 @@ macro_rules! impl_array_space {
                 $(self[$n - $i - 1].write(sym[$n - $i - 1].clone());)+
             }
 
-            fn mov(&mut self, dir: Self::Dir, def: &Self::Sym) {
-                $(self[$n - $i - 1].mov(dir[$n - $i - 1].clone(), &def[$n - $i - 1]);)+
+            fn mov(&mut self, dir: &Self::Dir, def: &Self::Sym) {
+                $(self[$n - $i - 1].mov(&dir[$n - $i - 1], &def[$n - $i - 1]);)+
             }
         }
 
@@ -57,7 +57,7 @@ macro_rules! impl_array_space {
 
             fn read(&self) -> Self::Sym { [] }
             fn write(&mut self, _: Self::Sym) {}
-            fn mov(&mut self, _: Self::Dir, _: &Self::Sym) {}
+            fn mov(&mut self, _: &Self::Dir, _: &Self::Sym) {}
         }
     };
 }
@@ -85,7 +85,7 @@ impl<T: Space> Space for Vec<T> {
         self.iter_mut().zip(sym).for_each(|(t,s)|t.write(s));
     }
 
-    fn mov(&mut self, dir: Self::Dir, def: &Self::Sym) {
+    fn mov(&mut self, dir: &Self::Dir, def: &Self::Sym) {
         self.iter_mut().zip(dir).zip(def).for_each(|((t,d),s)|t.mov(d,s));
     }
 }

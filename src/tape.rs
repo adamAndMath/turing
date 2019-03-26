@@ -30,7 +30,7 @@ impl<Sym: Clone + Eq> Space for Tape<Sym> {
         self.tape[self.pos] = sym;
     }
 
-    fn mov(&mut self, dir: Dir, def: &Sym) {
+    fn mov(&mut self, dir: &Dir, def: &Sym) {
         match dir {
             Dir::Left if self.pos == 0 => self.tape.push_front(def.clone()),
             Dir::Left => self.pos -= 1,

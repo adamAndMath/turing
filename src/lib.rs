@@ -30,7 +30,7 @@ impl<S: Space, Mem> Turing<S, Mem> {
         where S::Sym: Hash, Mem: Clone + Eq + Hash {
         let (dir, sym, mem) = self.map.get(&(space.read(), mem))?;
         space.write(sym.clone());
-        space.mov(dir.clone(), &self.default);
+        space.mov(dir, &self.default);
         Some((space, mem.clone()))
     }
 
